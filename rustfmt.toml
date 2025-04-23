@@ -1,0 +1,17 @@
+unstable_features = true
+max_width = 80
+fn_call_width = 80
+attr_fn_like_width = 80
+struct_lit_width = 12
+struct_variant_width = 0
+array_width = 60
+chain_width = 80
+single_line_let_else_max_width = 0
+single_line_if_else_max_width = 0
+reorder_impl_items = true
+merge_derives = false
+imports_granularity = "Module"
+overflow_delimited_expr = true
+group_imports = "StdExternalCrate"
+use_field_init_shorthand = true
+fn_params_layout = "Vertical"

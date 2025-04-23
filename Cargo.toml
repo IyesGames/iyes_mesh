@@ -1,0 +1,24 @@
+[package]
+name = "iyes_mesh"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = ["bin/iyesmesh"]
+
+[dependencies]
+bitcode = "0.6.6"
+bytemuck = { version = "1.22.0", features = ["derive"] }
+rapidhash = "1.4.0"
+thiserror = "2.0.12"
+
+[dependencies.zstd]
+version = "0.13.3"
+default-features = false
+features = [
+    "experimental",
+]
+
+[dev-dependencies]
+anyhow = "1.0.98"
+
