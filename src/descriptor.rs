@@ -11,12 +11,10 @@ pub struct IyesMeshDescriptor {
 
 #[derive(Default, Debug, Clone, Copy, bitcode::Encode, bitcode::Decode)]
 pub struct MeshInfo {
-    /// First index (if indices present) or vertex (if no indices present)
-    pub first: u32,
-    /// Number of indices (if present) or vertices (if no indices present)
-    pub count: u32,
-    /// If indices present, offset to add when indexing
-    pub base_vertex: i32,
+    pub first_index: u32,
+    pub index_count: u32,
+    pub first_vertex: u32,
+    pub vertex_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, bitcode::Encode, bitcode::Decode)]

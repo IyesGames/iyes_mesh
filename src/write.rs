@@ -1,4 +1,4 @@
-use std::io::{BufWriter, Write};
+use std::io::Write;
 
 use crate::HashMap;
 use crate::descriptor::*;
@@ -176,19 +176,22 @@ impl<'s> IyesMeshWriter<'s> {
         for m in self.src_meshes.iter() {
             if has_indices {
                 let n_indices = m.n_indices().unwrap() as u32;
+                let n_vertices = m.n_vertices() as u32;
                 r.push(MeshInfo {
-                    first,
-                    count: n_indices,
-                    base_vertex,
+                    first_index: first,
+                    index_count: n_indices,
+                    first_vertex: base_vertex,
+                    vertex_count: n_vertices,
                 });
                 first += n_indices;
-                base_vertex += m.n_vertices() as i32;
+                base_vertex += n_vertices;
             } else {
                 let n_vertices = m.n_vertices() as u32;
                 r.push(MeshInfo {
-                    first,
-                    count: n_vertices,
-                    base_vertex: 0,
+                    first_index: 0,
+                    index_count: 0,
+                    first_vertex: first,
+                    vertex_count: n_vertices,
                 });
                 first += n_vertices;
             }
@@ -196,7 +199,10 @@ impl<'s> IyesMeshWriter<'s> {
         r
     }
 
-    pub fn write_to(mut self, write: &'s mut dyn WriteSeek) -> Result<(), WriteError> {
+    pub fn write_to(
+        mut self,
+        write: &'s mut dyn WriteSeek,
+    ) -> Result<(), WriteError> {
         let havebufs = self.scan_needed_buffers()?;
         let computed_bufsizes = self.compute_uncompressed_sizes(
             self.settings.upconvert_indices

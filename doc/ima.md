@@ -50,12 +50,10 @@ struct IyesMeshDescriptor {
 }
 
 struct MeshInfo {
-    /// First index (if indices present) or vertex (if no indices present)
-    first: u32,
-    /// Number of indices (if present) or vertices (if no indices present)
-    count: u32,
-    /// If indices present, offset to add when indexing
-    base_vertex: i32,
+    first_index: u32,
+    index_count: u32,
+    first_vertex: u32,
+    vertex_count: u32,
 }
 
 struct IndicesInfo {

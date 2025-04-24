@@ -26,6 +26,9 @@ Deliberately does not support:
  - Scene data (transforms, etc.).
  - Other object types (cameras, lights, etc.).
 
+May support in the future:
+ - MeshOpt encoding of buffers pre-zstd-compression
+
 This is not a scene format. It's a GPU mesh format.
 
 However, if you need to use it for such use cases, feel free to encode whatever
@@ -60,6 +63,7 @@ It supports various operations on IMA files:
 Planned future work:
  - Converting from more formats: GLTF, STL, maybe FBX.
  - Extracting meshes from IMA into other formats.
+ - Running MeshOpt passes to optimize mesh data
 
 ## Reference Implementation (Library)
 

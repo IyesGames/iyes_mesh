@@ -1,7 +1,6 @@
-use std::io::{BufReader, ErrorKind, Read, SeekFrom};
+use std::io::{Read, SeekFrom};
 
-use rapidhash::RapidInlineHasher;
-
+use crate::checksum::checksum_data;
 use crate::HashMap;
 use crate::descriptor::*;
 use crate::header::{IyesMeshHeader, IyesMeshHeaderParseError};
@@ -60,7 +59,6 @@ pub struct IyesMeshReader<'s> {
     header: IyesMeshHeader,
     descriptor: IyesMeshDescriptor,
     buf: Vec<u8>,
-    uncompressed_data_len: u64,
     settings: IyesMeshReaderSettings,
 }
 
@@ -99,7 +97,6 @@ impl<'s> IyesMeshReader<'s> {
         }
         let descriptor = IyesMeshDescriptor::from_bytes(&buf)?;
         Ok(Self {
-            uncompressed_data_len: descriptor.compute_total_raw_data_size(),
             header,
             descriptor,
             read: Some(read),
@@ -121,28 +118,24 @@ impl<'s> IyesMeshReader<'s> {
             return Ok(());
         }
         let read = self.read.take().unwrap();
-        let mut hasher = RapidInlineHasher::default_const();
-        self.buf.resize(4096, 0);
-        loop {
-            match read.read(&mut self.buf) {
-                Ok(0) => break,
-                Ok(len) => {
-                    hasher = hasher.write_const(&self.buf[..len]);
-                }
-                Err(e) => return Err(e.into()),
-            }
-        }
-        let actual_data_checksum = hasher.finish_const();
+        self.buf.clear();
+        read.read_to_end(&mut self.buf)?;
+        let actual_data_checksum = checksum_data(&self.buf);
         if self.header.data_checksum != actual_data_checksum {
             return Err(ReadError::InvalidChecksums);
         }
         Ok(())
     }
 
-    pub fn read_all_data(mut self) -> Result<IyesMeshReaderWithData, ReadError> {
+    pub fn read_all_data(
+        mut self
+    ) -> Result<IyesMeshReaderWithData, ReadError> {
         let read = self.read.take().unwrap();
-        if self.settings.verify_data_checksum && self.header.data_checksum != 0 {
-            let actual_data_checksum = checksum_data_read(&mut self.buf, read)?;
+        if self.settings.verify_data_checksum && self.header.data_checksum != 0
+        {
+            self.buf.clear();
+            read.read_to_end(&mut self.buf)?;
+            let actual_data_checksum = checksum_data(&self.buf);
             if self.header.data_checksum != actual_data_checksum {
                 return Err(ReadError::InvalidChecksums);
             }
@@ -152,8 +145,8 @@ impl<'s> IyesMeshReader<'s> {
             ))?;
         }
         let mut decoder = new_zstd_decoder(read)?;
-        self.buf.resize(self.uncompressed_data_len as usize, 0);
-        decoder.read_exact(&mut self.buf)?;
+        self.buf.clear();
+        decoder.read_to_end(&mut self.buf)?;
         Ok(IyesMeshReaderWithData {
             descriptor: self.descriptor,
             buf: self.buf,
@@ -162,8 +155,11 @@ impl<'s> IyesMeshReader<'s> {
 
     pub fn read_user_data(mut self) -> Result<Vec<u8>, ReadError> {
         let read = self.read.take().unwrap();
-        if self.settings.verify_data_checksum && self.header.data_checksum != 0 {
-            let actual_data_checksum = checksum_data_read(&mut self.buf, read)?;
+        if self.settings.verify_data_checksum && self.header.data_checksum != 0
+        {
+            self.buf.clear();
+            read.read_to_end(&mut self.buf)?;
+            let actual_data_checksum = checksum_data(&self.buf);
             if self.header.data_checksum != actual_data_checksum {
                 return Err(ReadError::InvalidChecksums);
             }
@@ -228,35 +224,29 @@ impl IyesMeshReaderWithData {
         for m in self.descriptor.meshes.iter() {
             let mut mesh = MeshDataRef::default();
             if let Some((ifmt, idata)) = buffers.buf_index {
-                let index_offset = m.first as usize * ifmt.size();
-                let index_len = m.count as usize * ifmt.size();
+                let index_offset = m.first_index as usize * ifmt.size();
+                let index_len = m.index_count as usize * ifmt.size();
                 if idata.len() < index_offset + index_len {
                     return Err(ReadError::NotEnoughData);
                 }
                 let mesh_idata =
                     &idata[index_offset..(index_offset + index_len)];
                 mesh.indices = Some((ifmt, mesh_idata));
-                let vbuf_range = compute_vbuf_range_from_indices(
-                    mesh_idata,
-                    ifmt,
-                    m.base_vertex,
-                )
-                .ok_or(ReadError::NotEnoughData)?;
                 for (vusage, (vfmt, vdata)) in buffers.buf_attrs.iter() {
-                    let vertex_offset_start = vbuf_range.0 * vfmt.size();
-                    let vertex_offset_end = (vbuf_range.1 + 1) * vfmt.size();
-                    if vdata.len() < vertex_offset_end {
+                    let vertex_offset = m.first_vertex as usize * ifmt.size();
+                    let vertex_len = m.vertex_count as usize * ifmt.size();
+                    if vdata.len() < vertex_offset + vertex_len {
                         return Err(ReadError::NotEnoughData);
                     }
                     mesh.attributes.insert(
                         *vusage,
-                        (*vfmt, &vdata[vertex_offset_start..vertex_offset_end]),
+                        (*vfmt, &vdata[vertex_offset..(vertex_offset + vertex_len)]),
                     );
                 }
             } else {
                 for (vusage, (vfmt, vdata)) in buffers.buf_attrs.iter() {
-                    let vertex_offset = m.first as usize * vfmt.size();
-                    let vertex_len = m.count as usize * vfmt.size();
+                    let vertex_offset = m.first_vertex as usize * vfmt.size();
+                    let vertex_len = m.vertex_count as usize * vfmt.size();
                     if vdata.len() < vertex_offset + vertex_len {
                         return Err(ReadError::NotEnoughData);
                     }
@@ -281,58 +271,4 @@ pub fn is_iyes_mesh_file(read: &mut dyn ReadSeek) -> Result<bool, ReadError> {
     read.read_exact(&mut magic)?;
     read.rewind()?;
     Ok(magic == crate::MAGIC)
-}
-
-fn checksum_data_read(buf: &mut Vec<u8>, read: &mut dyn Read) -> Result<u64, ReadError> {
-    let mut hasher = rapidhash::RapidInlineHasher::default_const();
-    buf.resize(4096, 0);
-    loop {
-        match read.read(buf) {
-            Ok(0) => break,
-            Ok(len) => {
-                hasher = hasher.write_const(&buf[..len]);
-            }
-            Err(e) => return Err(e.into()),
-        }
-    }
-    Ok(hasher.finish_const())
-}
-
-fn compute_vbuf_range_from_indices(
-    idata: &[u8],
-    ifmt: IndexFormat,
-    base_vertex: i32,
-) -> Option<(usize, usize)> {
-    let (i_min, i_max) = match ifmt {
-        IndexFormat::U16 => (
-            idata
-                .chunks(2)
-                .map(|b| u16::from_le_bytes([b[0], b[1]]))
-                .min()
-                .unwrap_or(0) as u32,
-            idata
-                .chunks(2)
-                .map(|b| u16::from_le_bytes([b[0], b[1]]))
-                .max()
-                .unwrap_or(0) as u32,
-        ),
-        IndexFormat::U32 => (
-            idata
-                .chunks(4)
-                .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                .min()
-                .unwrap_or(0),
-            idata
-                .chunks(4)
-                .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
-                .max()
-                .unwrap_or(0),
-        ),
-    };
-    let v_min = i_min as i32 + base_vertex;
-    let v_max = i_max as i32 + base_vertex;
-    if v_max < v_min || v_min < 0 || v_max < 0 {
-        return None;
-    }
-    Some((v_min as usize, v_max as usize))
 }
