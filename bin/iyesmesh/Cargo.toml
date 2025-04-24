@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
-bitcode = "0.6.6"
 clap = { version = "4.5.37", features = ["derive", "env", "unicode", "wrap_help"] }
 iyes_mesh = { path = "../../" }
-rapidhash = { version = "1.4.0", features = ["unsafe"] }
+obj-rs = { version = "0.7.4", optional = true }
+
+[features]
+default = ["obj"]
+obj = ["dep:obj-rs"]

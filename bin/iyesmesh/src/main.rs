@@ -15,6 +15,8 @@ mod cmd {
     pub mod info;
     pub mod verify;
     pub mod merge;
+    #[cfg(feature = "obj")]
+    pub mod from_obj;
 }
 
 mod util;
@@ -109,6 +111,9 @@ enum CliCommand {
     ExtractUserData(cmd::extract_user_data::ExtractUserDataArgs),
     /// Load several files, save a file with their combined meshes
     Merge(cmd::merge::MergeArgs),
+    /// Import from OBJ format
+    #[cfg(feature = "obj")]
+    FromObj(cmd::from_obj::FromObjArgs),
 }
 
 impl From<&ReadArgs> for IyesMeshReaderSettings {
@@ -147,6 +152,8 @@ fn run_command(cli: &Cli) -> AnyResult<()> {
         }
         CliCommand::Edit(args) => cmd::edit::run(&cli.common, args),
         CliCommand::Merge(args) => cmd::merge::run(&cli.common, args),
+        #[cfg(feature = "obj")]
+        CliCommand::FromObj(args) => cmd::from_obj::run(&cli.common, args),
     }
 }
 

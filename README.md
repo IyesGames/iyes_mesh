@@ -50,8 +50,16 @@ Install it as:
 cargo install --force --path bin/iyesmesh
 ```
 
-It supports various operations on IMA files. Conversion to/from other formats
-is planned.
+It supports various operations on IMA files:
+ - Debug info and verification/checking
+ - Merging multiple files
+ - Deleting specific contents from files
+ - Extracting and replacing user data
+ - Converting from Wavefront OBJ files
+
+Planned future work:
+ - Converting from more formats: GLTF, STL, maybe FBX.
+ - Extracting meshes from IMA into other formats.
 
 ## Reference Implementation (Library)
 
